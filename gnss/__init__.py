@@ -1,22 +1,18 @@
 import os
-import logging
 
+from .logger import logger
 from .index import DateIndex
 from .utils import FTP, file_decompressor
 from .base import DATATYPES, Blocks, datafile
 
 #make sure that all datatypes registered
-from products.atmospheric import *
-from products.satellite import *
-from products.terrestrial import *
+from .products.atmospheric import *
+from .products.satellite import *
+from .products.terrestrial import *
 
-from data.satellite import *
-from data.station import *
+from .data.satellite import *
+from .data.station import *
 
-LOGLEVEL = logging.DEBUG
-logger = logging.getLogger(__name__)
-logger.setLevel(LOGLEVEL)
-logger.addHandler(logging.StreamHandler())
 
 DATASITE = 'igs.bkg.bund.de/EUREF/products/1426/'
 DATADIR_NAME = 'datafiles'

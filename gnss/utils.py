@@ -1,4 +1,6 @@
 import os
+import re
+import unicodedata
 import logging
 from contextlib import contextmanager
 
@@ -11,6 +13,13 @@ import subprocess
 logger = logging.getLogger(__name__)
 
 NOT_A_DIRECTORY = '550 That is not a directory.'
+
+def slugify(s):
+    slug = str(unicodedata.normalize('NFKD', s))
+    slug = slug.encode('ascii', 'ignore').lower()
+    print ([r'[^a-z0-9]+', '_', slug])
+    slug = re.sub(r'[^a-z0-9]+', '_', slug).strip('_')
+    return re.sub(r'__+',r'_',slug)
 
 @contextmanager
 def file_decompressor(name, mode):
