@@ -1,6 +1,6 @@
 import os
-from gnss.base import Blocks, BlocksRegistry
-from .base import FileReferenceBlock
+from gnss.base import Blocks, BlocksRegistry, DictBlock, ListBlock
+from .base import *
 
 __all__ = ['UltraRapidSinex', 'RapidSinex', 'MultipleDayRapidSinex', 
            'DayFinalSinex', 'WeekFinalSinex', 'MultipleDayFinalSinex']
@@ -12,7 +12,19 @@ class Sinex(Blocks):
         return src.endswith('.snx') and \
                cls.tokenize_filename(os.path.basename(src), cls.notation)
 
-    reference = FileReferenceBlock()
+    reference = DictBlock('FILE/REFERENCE')
+    site_ids = SiteIds()
+    receivers = Recievers()
+    antennas = Antennas()
+    phase_centers = PhaseCenters()
+    eccentricities = Eccentricities()
+    epochs = Epochs()
+    statistics = DictBlock('SOLUTION/STATISTICS')
+    estimates = Estimates()
+    apriori = Estimates(name = 'SOLUTION/APRIORI')
+    matrix_estimate = MatrixEstimates()
+    matrix_apriori = MatrixEstimates(name = 'SOLUTION/MATRIX_APRIORI L CORR')
+
 
 class UltraRapidSinex(Sinex, metaclass=BlocksRegistry):
     '''

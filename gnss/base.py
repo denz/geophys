@@ -1,8 +1,9 @@
 import re
-from functools import wraps
+from functools import wraps, partial
 import warnings
 from contextlib import contextmanager
 from mmap import mmap
+from itertools import takewhile
 
 from .logger import logger
 from .utils import slugify
@@ -41,6 +42,9 @@ class Blocks(object):
         if not hasattr(self, 'mmap'):
             self.mmap = mmap(self.file.fileno(), 0)
         
+        #potential optimization point
+        self.mmap.seek(0)
+        
         name = bytes(name, 'ascii')
 
         startpos = self.mmap.find(b'+'+name)
@@ -53,10 +57,8 @@ class Blocks(object):
         line = b''
         while not line.startswith(b'-'+name):
             if line:
-                yield line.decode(self.coding).strip('\n').strip()
+                yield line.decode(self.coding).strip('\n')
             line = self.mmap.readline()
-
-        
 
     def __del__(self):
         if hasattr(self, 'file'):
@@ -82,7 +84,6 @@ def datafile(*args, **kwargs):
 
 
 class BlockMixin(object):
-
     def __get__(self, instance, owner):
         if not instance:
             return self.__class__
@@ -101,8 +102,7 @@ class BlockMixin(object):
             if self.kwargs.get('mandatory', True):
                 raise
 
-non_transparsers = ('__getattribute__','clear', '__repr__', '__init__')
-
+non_transparsers = ('__getattribute__','clear', '__init__')
 
 def transparse(wrapped, parser):
     @wraps(wrapped)
@@ -135,11 +135,13 @@ class DictBlock(dict, BlockMixin):
 
     def parse(self):
         text = self.get_block(self.name)
+
         #untransparse before any actions
         untransparse(self, dict)
+
         self._parsed = True
         for line in text:
-            self.__setitem__(*self.item(line))
+            self.__setitem__(*self.item(line.strip()))
         
 
     def __init__(self, name, **kwargs):
@@ -148,3 +150,138 @@ class DictBlock(dict, BlockMixin):
         dict.__init__.__get__(self, dict)()
     
     setup_transparsers(locals(), dict, parse)
+
+class TextBlock(str, BlockMixin):
+    def parse(self):
+        text = self.get_block(self.name)
+        self = ''.join(text)
+        
+        #untransparse before any actions
+        untransparse(self, dict)
+        self._parsed = True
+        
+
+    def __init__(self, name, **kwargs):
+        self.name = name
+        self.kwargs = kwargs
+        dict.__init__.__get__(self, str)()
+    
+    setup_transparsers(locals(), str, parse)
+
+class ListBlock(list, BlockMixin):
+    cleaner_prefix = 'clean_'
+    def slugify(self, header):
+        return slugify(header)
+
+    def default_clean(self, s):
+        return s.strip()
+
+    def clean(self, header, value):
+        custom_cleaner = '%s%s'%(self.cleaner_prefix,
+                                self.slugify(header))
+        return getattr(self, custom_cleaner, self.default_clean)(value)
+
+    def tokenize(self, line):
+
+        return dict((header, self.clean(header, line[start:stop])) \
+                    for (header, (start, stop)) in self.headers.items())
+
+
+    def parse(self):
+        lines = self.get_block(self.name)
+        if not hasattr(self, 'headers'):
+            self.headers = ParseHeaders()
+        
+        line = None
+        if isinstance(self.headers, ParseHeaders) and not self.headers:
+            line = self.headers.parse(lines)
+        else:
+            takewhile(lambda s:startswith('*'), lines)
+            next(lines)
+
+
+        #can remove transparsing decorators now
+        untransparse(self, dict)
+        self._parsed = True
+
+        if line:
+            self += self.tokenize(line),
+        for line in lines:
+            self += self.tokenize(line),  
+
+    def __init__(self, name, **kwargs):
+        self.name = name
+        self.kwargs = kwargs
+        list.__init__.__get__(self, list)()
+    
+    setup_transparsers(locals(), list, parse)
+
+
+class ParseHeaders(dict):
+    line_width = 80
+    subsplitter = ' '
+    def __init__(self, *args, **kwargs):
+        self.prefix = kwargs.get('prefix', '*')
+        super(ParseHeaders, self).__init__(*args, **kwargs)
+    
+    def clean_key(self, key):
+        return key.strip('_')
+    
+    def flatten(self, start, stop, subheaders):
+        if not len(subheaders):
+            return
+
+        headers = iter(subheaders[-1])
+        for (header, (substart, substop)) in headers:
+            if substart>=start and substop<=stop:
+                has_subs = False
+                for (subheader, (subsubstart, subsubstop)) in self.flatten(substart, 
+                                                                           substop, 
+                                                                           subheaders[:-1]):
+                    has_subs = True
+                    yield (''.join([header, self.subsplitter, subheader]), 
+                           (subsubstart, subsubstop))
+                if not has_subs:
+                    yield (header, (substart, substop))
+
+    def parse_header_line(self, line):
+        if not hasattr(self, 'subheaders'):
+            self.subheaders = []
+
+        subheaders = []
+
+        pos = len(line) - len(line[1:].lstrip())
+
+        for header in line[pos:].split(' '):
+            newpos = pos + len(header)
+            if header.strip():
+                subheaders += (self.clean_key(header), (pos, newpos)),
+            pos = newpos + 1
+
+        if len(self.subheaders):
+            #see +SITE/ECCENTRICITY, last column
+            if self.subheaders[-1][-1][1][1] > subheaders[-1][1][1]:
+                subheaders[-1] = \
+                  (subheaders[-1][0], (subheaders[-1][1][0], self.subheaders[-1][-1][1][1]))
+        self.subheaders += subheaders,
+
+    def parse(self, lines):
+        line = next(lines)
+        while line.startswith(self.prefix):
+            self.parse_header_line(line)
+            line = next(lines)
+        super(ParseHeaders, self).__init__(self.flatten(0, self.line_width, self.subheaders))
+        return line
+
+
+    def __get__(self, instance, owner):
+        if not instance:
+            return self.__class__
+
+        if not hasattr(instance, '_headers'):
+            instance._headers = self.__class__()
+            instance._headers.instance = instance
+
+        return instance._headers
+
+    
