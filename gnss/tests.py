@@ -119,12 +119,16 @@ class DictBlockTestCase(unittest.TestCase):
 
     def test_(self):
         from gnss import datafile
+        testfile = '/home/den/project/geophys/gnss/datafiles/1426/asi14260.tro'
         # from gnss.base import ParseHeaders
         # h = ParseHeaders()
         # h.parse(iter(['*INDEX TYPE__ CODE PT SOLN REF_EPOCH___ UNIT S __ESTIMATED_VALUE____ _STD_DEV___','']))
         # print (h)
-        with datafile(self.testfile) as sinex:
-            print (sinex.matrix_apriori[0])
+        with datafile(testfile) as tropo:
+            '%s'%tropo.reference
+            '%s'%tropo.description
+            '%s'%tropo.coordinates
+            '%s'%tropo.solutions
 
 if __name__ == '__main__':
     unittest.main()

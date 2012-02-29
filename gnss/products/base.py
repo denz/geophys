@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta, date
 from gnss.base import ListBlock
+from gnss.cleaners import *
 
 class SiteIds(ListBlock):
     '''This block provides general information for each site containing estimated
@@ -26,15 +26,7 @@ class PhaseCenters(ListBlock):
 
 class DateCleanerMixin(object):
     def clean_date(self, value):
-        year, day, second = [int(v) for v in value.split(':')]
-        if (year, day, second) == (0,0,0):
-            return None
-        
-        age=2000
-        if (year+age)>date.today().year:
-            age = 1900
-        
-        return datetime(year+age, 1, 1) + timedelta(days=day, seconds=second)
+        return clean_date(value)
 
     clean_data_start=clean_data_end=clean_mean_epoch=clean_ref_epoch=clean_date
 
