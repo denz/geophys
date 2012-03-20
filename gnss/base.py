@@ -4,11 +4,14 @@ import warnings
 from contextlib import contextmanager
 from mmap import mmap
 from itertools import takewhile
+import os
+from pprint import pprint
 
 from .logger import logger
 from .utils import slugify
 
 DATATYPES = {}
+QUIET_ON_CLEAN_VALUES = True
 
 class BlocksRegistry(type):
 
@@ -54,21 +57,48 @@ class Blocks(object):
         self.mmap.seek(startpos)
         
         self.mmap.readline()
+        self.line_num = 1
         line = b''
         while not line.startswith(b'-'+name):
             if line:
                 yield line.decode(self.coding).strip('\n')
             line = self.mmap.readline()
+            self.line_num += 1
 
-    def __del__(self):
+    def close(self):
         if hasattr(self, 'file'):
             self.file.close()
 
         if hasattr(self, 'mmap'):
             self.mmap.close()
 
+    def __del__(self):
+        self.close()
+
+
+    def clean_meta_week(self, value):
+        return int(value)
+    clean_meta_hour = clean_meta_day = clean_meta_week
+
+    def clean_meta_center(self, value):
+        return value.upper()
+
+    def clean_meta(self, name, value):
+        custom_cleaner = getattr(self, 'clean_meta_%s'%slugify(name), None)
+        return custom_cleaner(value) if custom_cleaner else value.strip()
+
+    def setup_meta_from_filename(self):
+        group = self.tokenize_filename(os.path.basename(self.src),
+                                       self.notation).group
+        self.meta = dict(zip(self.tokens, [self.clean_meta(token,
+                                    group(token)) for token in self.tokens]))
+
+
     def __init__(self, src):
         self.src = src
+        if hasattr(self, 'notation') and hasattr(self, 'tokens'):
+            self.setup_meta_from_filename()
+
 
     
 @contextmanager
@@ -182,11 +212,21 @@ class ListBlock(list, BlockMixin):
         return getattr(self, custom_cleaner, self.default_clean)(value)
 
     def tokenize(self, line):
-
-        return dict((header, self.clean(header, line[start:stop])) \
+        try:
+            return dict((header, self.clean(header, line[start:stop])) \
                     for (header, (start, stop)) in self.headers.items())
-
-
+        except Exception as e:
+            def info(obj):
+                return dict((k,v) for k,v in obj.__dict__.items() \
+                            if not (callable(v) or k.startswith('__')))
+            pprint ({'block':info(self),
+                     'data':info(self.instance)})
+            if self.kwargs['quiet_on_clean_values']:
+                print (e)
+                return None
+            else:
+                raise
+            
     def parse(self):
         lines = self.get_block(self.name)
         if not hasattr(self, 'headers'):
@@ -199,18 +239,22 @@ class ListBlock(list, BlockMixin):
             takewhile(lambda s:startswith('*'), lines)
             next(lines)
 
-
         #can remove transparsing decorators now
         untransparse(self, dict)
         self._parsed = True
 
+        append_if_good_dataline = lambda tokens:tokens is not None \
+                                                and self.append(tokens)
         if line:
-            self += self.tokenize(line),
+            append_if_good_dataline(self.tokenize(line))
+            
         for line in lines:
-            self += self.tokenize(line),  
+            append_if_good_dataline(self.tokenize(line))    
 
     def __init__(self, name, **kwargs):
         self.name = name
+        kwargs['quiet_on_clean_values'] = kwargs.get('quiet_on_clean_values', 
+                                                      QUIET_ON_CLEAN_VALUES)
         self.kwargs = kwargs
         list.__init__.__get__(self, list)()
     
