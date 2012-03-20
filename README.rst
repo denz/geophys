@@ -1,3 +1,3 @@
-== TODO ==
+Just a repo for my geophysical data processing packages and scripts
 
-1. Check LICENSE
+* gnss - GNSS products parser

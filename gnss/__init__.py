@@ -14,8 +14,8 @@ from .data.satellite import *
 from .data.station import *
 
 
-DATASITE = 'igs.bkg.bund.de/EUREF/products/1426/'
-DATADIR_NAME = 'datafiles'
+DATASITE = 'igs.bkg.bund.de/EUREF/products/'
+DATADIR_NAME = '/home/den/wine_c/mirror/igs.bkg.bund.de/EUREF/products'
 DATADIR = os.path.abspath(os.path.join(os.path.dirname(__file__), DATADIR_NAME))
 
 __all__ = ['index', 'datafile']

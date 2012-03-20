@@ -57,7 +57,17 @@ class Epochs(DateCleanerMixin, ListBlock):
         super(Epochs, self).__init__(name, **kwargs)
 
 class Estimates(DateCleanerMixin, ListBlock):
-    headers = {'SOLN': (22, 26), 'INDEX': (1, 6), 'CODE': (14, 18), 'PT': (19, 21), 'ESTIMATED_VALUE': (47, 68), 'REF_EPOCH': (27, 39), 'S': (45, 46), 'STD_DEV': (69, 80), 'TYPE': (7, 13), 'UNIT': (40, 44)}
+    headers = { 'SOLN': (22, 26),
+                'INDEX': (1, 6),
+                'CODE': (14, 18),
+                'PT': (19, 21),
+                'ESTIMATED_VALUE': (47, 68),
+                'REF_EPOCH': (27, 39),
+                'S': (45, 46),
+                'STD_DEV': (69, 80),
+                'TYPE': (7, 13),
+                'UNIT': (40, 44)}
+
     def __init__(self, name='SOLUTION/ESTIMATE', **kwargs):
         super(Estimates, self).__init__(name, **kwargs)
     
